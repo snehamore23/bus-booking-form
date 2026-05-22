@@ -1,0 +1,295 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import './App.css';
+
+function App() {
+  const [formData, setFormData] = useState({
+    name: '',
+    source: '',
+    destination: '',
+    date: '',
+    seats: 1
+  });
+
+  const [isSaved, setIsSaved] = useState(false);
+  const [recent, setRecent] = useState([]);
+  const [isShaking, setIsShaking] = useState(false);
+
+  const cardRef = useRef(null);
+  const formRef = useRef(null);
+  const shakeTimerRef = useRef(null);
+  const clearSavedTimerRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('bookings')) || [];
+      setRecent(existing.slice(-3).reverse());
+    } catch {
+      setRecent([]);
+    }
+  }, []);
+
+  // Mouse-parallax glow behind the card
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    let raf = null;
+
+    const onMove = (e) => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        el.style.setProperty('--mx', `${x}%`);
+        el.style.setProperty('--my', `${y}%`);
+      });
+    };
+
+    el.addEventListener('mousemove', onMove);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      el.removeEventListener('mousemove', onMove);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+      if (clearSavedTimerRef.current) clearTimeout(clearSavedTimerRef.current);
+    };
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'seats' ? Number(value) : value
+    }));
+    setIsSaved(false);
+  };
+
+  const swapRoute = () => {
+    setFormData((prev) => ({
+      ...prev,
+      source: prev.destination,
+      destination: prev.source
+    }));
+    setIsSaved(false);
+  };
+
+  const fareEstimate = useMemo(() => {
+    const src = (formData.source || '').trim().toLowerCase();
+    const dst = (formData.destination || '').trim().toLowerCase();
+
+    if (!src || !dst) return { perSeat: 0, total: 0 };
+
+    const hash = (s) => {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      return h;
+    };
+
+    const base = 79; // base fare
+    const srcH = hash(src);
+    const dstH = hash(dst);
+    const distanceFactor = (Math.abs(srcH - dstH) % 120) + 60; // 60..179
+
+    const perSeat = Math.round((base + distanceFactor) / 2);
+    const total = perSeat * Number(formData.seats || 1);
+
+    return { perSeat, total };
+  }, [formData.source, formData.destination, formData.seats]);
+
+  const validate = () => {
+    const missing = [];
+    if (!formData.name.trim()) missing.push('name');
+    if (!formData.source.trim()) missing.push('source');
+    if (!formData.destination.trim()) missing.push('destination');
+    if (!formData.date) missing.push('date');
+    if (!formData.seats || formData.seats < 1) missing.push('seats');
+    return missing;
+  };
+
+  const triggerShake = () => {
+    if (!cardRef.current) return;
+    setIsShaking(true);
+    if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+    shakeTimerRef.current = setTimeout(() => setIsShaking(false), 340);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    const missing = validate();
+    if (missing.length) {
+      triggerShake();
+      const fieldName = missing[0];
+      const input = formRef.current?.querySelector(`[name="${fieldName}"]`);
+      input?.focus?.();
+      return;
+    }
+
+    try {
+      const existingBookings = JSON.parse(localStorage.getItem('bookings')) || [];
+      const updatedBookings = [...existingBookings, formData];
+
+      localStorage.setItem('bookings', JSON.stringify(updatedBookings));
+
+      setIsSaved(true);
+      setRecent([...updatedBookings.slice(-3).reverse()]);
+
+      setFormData({
+        name: '',
+        source: '',
+        destination: '',
+        date: '',
+        seats: 1
+      });
+
+      if (clearSavedTimerRef.current) clearTimeout(clearSavedTimerRef.current);
+      clearSavedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
+
+      cardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+      triggerShake();
+    }
+  };
+
+  return (
+    <div className="app-container">
+      <div ref={cardRef} className={`booking-card ${isShaking ? 'shake' : ''}`}>
+        <h1 className="title">Book Your Journey</h1>
+        <p className="subtitle">Fast, secure, and reliable bus booking</p>
+
+        <div className="row-meta">
+          <span className="badge" title="Estimated availability indicator">
+            <span className="dot" /> Live availability
+          </span>
+          <div className="fare">
+            <span className="label">Fare estimate</span>
+            <div className="value">₹{fareEstimate.total.toLocaleString('en-IN')}</div>
+            <span className="small">
+              {fareEstimate.perSeat ? `₹${fareEstimate.perSeat} / seat` : 'Enter route to estimate'}
+            </span>
+          </div>
+        </div>
+
+        <form ref={formRef} onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="name">Full Name</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="form-control"
+              placeholder="Enter your full name"
+              required
+            />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="source">From (Source)</label>
+              <input
+                type="text"
+                id="source"
+                name="source"
+                value={formData.source}
+                onChange={handleChange}
+                className="form-control"
+                placeholder="e.g., New York"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="destination">To (Destination)</label>
+              <input
+                type="text"
+                id="destination"
+                name="destination"
+                value={formData.destination}
+                onChange={handleChange}
+                className="form-control"
+                placeholder="e.g., Boston"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="swap-row">
+            <button type="button" className="swap-btn" onClick={swapRoute} aria-label="Swap source and destination">
+              ⇄ Swap
+            </button>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="date">Journey Date</label>
+              <input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                className="form-control"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="seats">Number of Seats</label>
+              <input
+                type="number"
+                id="seats"
+                name="seats"
+                value={formData.seats}
+                onChange={handleChange}
+                className="form-control"
+                min="1"
+                max="10"
+                required
+              />
+            </div>
+          </div>
+
+          <button type="submit" className="submit-btn">
+            Confirm Booking
+          </button>
+        </form>
+
+        {isSaved && <div className="success-message">Your booking details have been securely saved!</div>}
+
+        {recent.length > 0 && (
+          <div className="recent">
+            <div className="recent-title">Recent bookings</div>
+            <div className="recent-list">
+              {recent.map((b, idx) => (
+                <div key={`${b.date}-${idx}`} className="recent-item">
+                  <div className="left">
+                    <div className="route">
+                      {b.source} → {b.destination}
+                    </div>
+                    <div className="meta">{b.date}</div>
+                  </div>
+                  <div className="right">
+                    <div className="seats">
+                      {b.seats} seat{Number(b.seats) === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;
+

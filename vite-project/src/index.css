@@ -1,0 +1,37 @@
+/* Global styles */
+
+:root {
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --border-color: rgba(148, 163, 184, 0.35);
+  --text-muted: #64748b;
+  --primary: #d84e55;
+  --primary-hover: #b43a40;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+    Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background:
+    radial-gradient(800px 200px at 50% 20%, rgba(216, 78, 85, 0.22), transparent 60%),
+    radial-gradient(700px 180px at 60% 30%, rgba(59, 130, 246, 0.18), transparent 65%);
+  color: #0f172a;
+}
+
+/* Keep focus visible */
+:focus-visible {
+  outline: 3px solid rgba(216, 78, 85, 0.35);
+  outline-offset: 2px;
+}
+
+/* Utility */
+* {
+  box-sizing: border-box;
+}
+
