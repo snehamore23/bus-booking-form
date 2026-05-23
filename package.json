@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "workspaces": [
+    "bus-form",
+    "vite-project"
+  ],
+  "scripts": {
+    "dev": "npm --prefix ./bus-form run dev",
+    "build": "npm --prefix ./bus-form run build",
+    "preview": "npm --prefix ./bus-form run preview",
+    "lint": "npm --prefix ./bus-form run lint"
+  }
+}
